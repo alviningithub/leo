@@ -15,3 +15,7 @@ def build(bld):
     obj = bld.create_ns3_program('leo-bulk-send',
                                  ['core', 'leo', 'mobility', 'aodv'])
     obj.source = 'leo-bulk-send-example.cc'
+
+    obj = bld.create_ns3_program('calculate_delay',
+                                 ['core', 'leo', 'mobility', 'aodv'])
+    obj.source = 'calculate_delay.cc'
