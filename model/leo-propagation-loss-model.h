@@ -74,6 +74,15 @@ private:
   double m_linkMargin;
 
   /**
+   * bandwidth
+   */
+  double m_bandwidth;
+
+  /**
+   * frequency
+   */
+  double m_frequencyGHz;
+  /**
    * \brief Calculate the Rx Power
    * \param txPowerDbm current transmission power (in dBm)
    * \param a the mobility model of the source

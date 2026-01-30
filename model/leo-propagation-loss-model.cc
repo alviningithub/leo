@@ -58,6 +58,16 @@ LeoPropagationLossModel::GetTypeId (void)
                    DoubleValue (0.0),
                    MakeDoubleAccessor (&LeoPropagationLossModel::m_linkMargin),
                    MakeDoubleChecker<double> ())
+    .AddAttribute ("BandWidth",
+                   "The bandwidth for channel in MHz",
+                   DoubleValue (0.0),
+                   MakeDoubleAccessor (&LeoPropagationLossModel::m_bandwidth),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("Frequency",
+                   "Frequency in GHz",
+                   DoubleValue (0.0),
+                   MakeDoubleAccessor (&LeoPropagationLossModel::m_frequencyGHz),
+                   MakeDoubleChecker<double>())
   ;
   return tid;
 }
@@ -125,7 +135,6 @@ LeoPropagationLossModel::DoCalcRxPower (double txPowerDbm,
 
       return -1000.0;
     }
-
   // txPowerDbm includes tx antenna gain and losses
   // receiver loss and gain added at net device
   // P_{RX} = P_{TX} + G_{TX} - L_{TX} - L_{FS} - L_M + G_{RX} - L_{RX}

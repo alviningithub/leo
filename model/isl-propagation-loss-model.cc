@@ -36,9 +36,21 @@ IslPropagationLossModel::GetTypeId (void)
     .SetParent<PropagationLossModel> ()
     .SetGroupName ("Leo")
     .AddConstructor<IslPropagationLossModel> ()
+    .AddAttribute ("BandWidth",
+                   "The bandwidth for channel in MHz",
+                   DoubleValue (0.0),
+                   MakeDoubleAccessor (&IslPropagationLossModel::m_bandwidth),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("Frequency",
+                   "Frequency in GHz",
+                   DoubleValue (0.0),
+                   MakeDoubleAccessor (&IslPropagationLossModel::m_frequencyGHz),
+                   MakeDoubleChecker<double>())
   ;
   return tid;
 }
+
+
 
 IslPropagationLossModel::IslPropagationLossModel ()
 {
@@ -106,8 +118,11 @@ IslPropagationLossModel::DoCalcRxPower (double txPowerDbm,
     {
       return -1000.0;
     }
-
-  return txPowerDbm;
+    //modify make distance influence path loss 
+  double distance = a->GetDistanceFrom(b); 
+  double freq = 1e9 * m_frequencyGHz;
+  double fsplDB = 20 * log10(4 * M_PI * distance * freq / 3e8);
+  return txPowerDbm - fsplDB;
 }
 
 int64_t

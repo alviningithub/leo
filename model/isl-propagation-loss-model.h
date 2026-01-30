@@ -77,6 +77,15 @@ private:
                                 Ptr<MobilityModel> b) const;
 
   virtual int64_t DoAssignStreams (int64_t stream);
+  /*
+    Bandwidth
+  */
+
+  double m_bandwidth;
+  /*
+    Frequence
+  */
+  double m_frequencyGHz;
 };
 
 }

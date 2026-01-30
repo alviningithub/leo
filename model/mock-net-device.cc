@@ -328,6 +328,33 @@ MockNetDevice::TransmitStart (Ptr<Packet> p, const Address &dest)
   m_currentPkt = p;
   m_phyTxBeginTrace (m_currentPkt);
 
+  // TODO: modify function modify datarate before calculate delay
+  // Get two mobility model & prop model -> rxPower -> SNR -> Capacity
+  Ptr<MobilityModel> src_mob = GetObject<MobilityModel>();
+  // Assume address are the destination  
+  // Then by comparing the node attach on the channel, I can find the dest obj
+  Ptr<const MockChannel> mc = DynamicCast<const MockChannel>(GetChannel()) ;//is this mockchannel the correct one? 
+  Ptr<MobilityModel> dest_mob = 0;
+  for(size_t i = 0 ; i < mc->GetNDevices(); i ++){
+    Ptr<MockNetDevice> cur = DynamicCast<MockNetDevice>( mc->GetDevice(i)) ; 
+    if(cur->GetAddress() == dest){
+      dest_mob = cur->GetObject<MobilityModel>();
+      break;
+    }
+
+  }
+  // if mobility model is set, calculate capacity
+  DoubleValue bandwidth;
+  mc->GetPropagationLoss()->GetAttribute("BandWidth",bandwidth);
+  double noiseDB = -90;
+  if(dest_mob != 0){
+    double rxPower = mc->GetPropagationLoss()->CalcRxPower(m_txPower,src_mob,dest_mob);
+    double snrDB = rxPower - noiseDB;
+    double capacity = bandwidth.Get()* log2(1 + pow(10,snrDB/10)); 
+    m_bps = capacity;
+  }
+
+
   Time txTime = m_bps.CalculateBytesTxTime (p->GetSize ());
   Time txCompleteTime = txTime + m_tInterframeGap;
 
