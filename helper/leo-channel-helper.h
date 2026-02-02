@@ -158,6 +158,13 @@ public:
    * \param v4 value of an attribute of the channel
    */
   void SetChannelAttribute (std::string name, const AttributeValue &value);
+  
+  /**
+   * \brief Set the type and attributes of the propagation loss model
+   * \param name name of an attribute of the channel
+   * \param value value of an attribute of the channel
+   */
+  void SetPropagationLossModelAttribute (std::string name, const AttributeValue &value);
 
   virtual void EnablePcapInternal (std::string prefix, Ptr<NetDevice> nd, bool promiscuous, bool explicitFilename);
   virtual void EnableAsciiInternal (Ptr<OutputStreamWrapper> stream,

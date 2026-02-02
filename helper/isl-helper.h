@@ -100,6 +100,18 @@ public:
    * by IslHelper::Install
    */
   void SetChannelAttribute (std::string name, const AttributeValue &value);
+  
+  /**
+   * Set and attribute value to be propagated to each propagation loss model 
+   * created by the helper. 
+   * 
+   * \param name the name of the attribute to set
+   * \param value the value of the attribute to set
+   * 
+   * Set these attribute on each ns3::IslPropagationLossModel created
+   * by IslHelper::Install
+   */
+  void SetPropagationLossModelAttribute (std::string name, const AttributeValue &value);
 
   /**
    * \param c a set of nodes
@@ -164,7 +176,10 @@ private:
   ObjectFactory m_queueFactory;         //!< Queue Factory
   ObjectFactory m_channelFactory;       //!< Channel Factory
   ObjectFactory m_deviceFactory;        //!< Device Factory
+  ObjectFactory m_propagationLossFactory;//!< Propagation Loss Factory
+  ObjectFactory m_propagationDelayFactory;//!< Propagation Delay Factory
 };
+
 
 } // namespace ns3
 

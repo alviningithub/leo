@@ -207,6 +207,12 @@ LeoChannelHelper::SetChannelAttribute (std::string name, const AttributeValue &v
   m_channelFactory.Set (name, value);
 }
 
+void 
+LeoChannelHelper::SetPropagationLossModelAttribute (std::string name, const AttributeValue &value)
+{
+  m_propagationLossFactory.Set (name, value);
+}
+
 void
 LeoChannelHelper::EnablePcapInternal (std::string prefix, Ptr<NetDevice> nd, bool promiscuous, bool explicitFilename)
 {

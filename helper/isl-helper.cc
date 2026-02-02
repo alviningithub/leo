@@ -32,6 +32,7 @@
 #include "../model/mock-net-device.h"
 #include "../model/isl-mock-channel.h"
 #include "isl-helper.h"
+#include "../model/isl-propagation-loss-model.h"
 
 namespace ns3 {
 
@@ -43,7 +44,9 @@ IslHelper::IslHelper ()
   m_deviceFactory.SetTypeId ("ns3::MockNetDevice");
   m_channelFactory.SetTypeId ("ns3::IslMockChannel");
   m_channelFactory.Set ("PropagationDelay", StringValue ("ns3::ConstantSpeedPropagationDelayModel"));
-  m_channelFactory.Set ("PropagationLoss", StringValue ("ns3::IslPropagationLossModel"));
+  // m_channelFactory.Set ("PropagationLoss", StringValue ("ns3::IslPropagationLossModel"));
+  m_propagationLossFactory.SetTypeId("ns3::IslPropagationLossModel");
+  m_propagationDelayFactory.SetTypeId("ns3::ConstantSpeedPropagationDelayModel");
 }
 
 void
@@ -72,6 +75,12 @@ void
 IslHelper::SetChannelAttribute (std::string n1, const AttributeValue &v1)
 {
   m_channelFactory.Set (n1, v1);
+}
+
+void
+IslHelper::SetPropagationLossModelAttribute (std::string n1, const AttributeValue &v1)
+{
+  m_propagationLossFactory.Set (n1, v1);
 }
 
 void
@@ -227,7 +236,9 @@ IslHelper::Install (std::vector<Ptr<Node> > &nodes)
 {
   NS_LOG_FUNCTION (this);
 
-  Ptr<MockChannel> channel = m_channelFactory.Create<MockChannel> ();
+  Ptr<IslMockChannel> channel = m_channelFactory.Create<IslMockChannel> ();
+  channel->SetPropagationLoss (m_propagationLossFactory.Create<IslPropagationLossModel> ());
+  channel->SetPropagationDelay (m_propagationDelayFactory.Create<ConstantSpeedPropagationDelayModel> ());
 
   NetDeviceContainer container;
 
