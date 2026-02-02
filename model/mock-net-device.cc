@@ -350,7 +350,7 @@ MockNetDevice::TransmitStart (Ptr<Packet> p, const Address &dest)
   if(dest_mob != 0){
     double rxPower = mc->GetPropagationLoss()->CalcRxPower(m_txPower,src_mob,dest_mob);
     double snrDB = rxPower - noiseDB;
-    double capacity = bandwidth.Get()* log2(1 + pow(10,snrDB/10)); 
+    double capacity = bandwidth.Get()* log2(1 + pow(10,snrDB/10))*1e6; // bandwidth is MHZ
     m_bps = capacity;
   }
 

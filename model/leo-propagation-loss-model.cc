@@ -135,10 +135,15 @@ LeoPropagationLossModel::DoCalcRxPower (double txPowerDbm,
 
       return -1000.0;
     }
+  // Calculate distance related fspl
+  double freq = 1e9 * m_frequencyGHz;
+  double fsplDB = 20 * log10(4 * M_PI * distance * freq / 3e8);
   // txPowerDbm includes tx antenna gain and losses
   // receiver loss and gain added at net device
   // P_{RX} = P_{TX} + G_{TX} - L_{TX} - L_{FS} - L_M + G_{RX} - L_{RX}
-  double rxc = txPowerDbm - m_atmosphericLoss - m_freeSpacePathLoss - m_linkMargin;
+  // double rxc = txPowerDbm - m_atmosphericLoss - m_freeSpacePathLoss - m_linkMargin;
+
+  double rxc = txPowerDbm - m_atmosphericLoss - fsplDB - m_linkMargin;
   NS_LOG_DEBUG ("LEO TRANSMIT distance: a=" << a->GetPosition () << " b=" << b->GetPosition ()<<" dist=" << distance <<" cutoff="<<cutOff<< "rxc=" << rxc);
 
   return rxc;
