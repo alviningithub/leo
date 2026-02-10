@@ -315,7 +315,7 @@ MockNetDevice::SetInterframeGap (Time t)
 bool
 MockNetDevice::TransmitStart (Ptr<Packet> p, const Address &dest)
 {
-  NS_LOG_FUNCTION (this << p);
+  NS_LOG_FUNCTION (this << p << dest);
   NS_LOG_LOGIC ("UID is " << p->GetUid () << ")");
 
   //
@@ -330,28 +330,37 @@ MockNetDevice::TransmitStart (Ptr<Packet> p, const Address &dest)
 
   // TODO: modify function modify datarate before calculate delay
   // Get two mobility model & prop model -> rxPower -> SNR -> Capacity
-  Ptr<MobilityModel> src_mob = GetObject<MobilityModel>();
+  Ptr<MobilityModel> src_mob = GetNode()->GetObject<MobilityModel>();
+  NS_ASSERT_MSG(src_mob,"src don't have mobility model");
   // Assume address are the destination  
   // Then by comparing the node attach on the channel, I can find the dest obj
   Ptr<const MockChannel> mc = DynamicCast<const MockChannel>(GetChannel()) ;//is this mockchannel the correct one? 
   Ptr<MobilityModel> dest_mob = 0;
-  for(size_t i = 0 ; i < mc->GetNDevices(); i ++){
-    Ptr<MockNetDevice> cur = DynamicCast<MockNetDevice>( mc->GetDevice(i)) ; 
-    if(cur->GetAddress() == dest){
-      dest_mob = cur->GetObject<MobilityModel>();
-      break;
-    }
-
+  Mac48Address dest_mac = Mac48Address::ConvertFrom(dest);
+  for (size_t i = 0; i < mc->GetNDevices (); i++)
+  {
+      Ptr<MockNetDevice> cur =
+          DynamicCast<MockNetDevice> (mc->GetDevice (i));
+      NS_ASSERT_MSG(cur,"Cannot Dynamic Cast To MockNetDevice");
+      Mac48Address cur_mac =
+          Mac48Address::ConvertFrom (cur->GetAddress ());
+      if (cur_mac == dest_mac)
+      {
+          dest_mob = cur->GetNode ()->GetObject<MobilityModel> ();
+          NS_ASSERT_MSG (dest_mob, "MobilityModel not found on node!");
+          break;
+      }
   }
+
   // if mobility model is set, calculate capacity
   DoubleValue bandwidth;
   mc->GetPropagationLoss()->GetAttribute("BandWidth",bandwidth);
   double noiseDB = -90;
-  if(dest_mob != 0){
+  if(dest_mob && src_mob && mc){
     double rxPower = mc->GetPropagationLoss()->CalcRxPower(m_txPower,src_mob,dest_mob);
     double snrDB = rxPower - noiseDB;
     double capacity = bandwidth.Get()* log2(1 + pow(10,snrDB/10))*1e6; // bandwidth is MHZ
-    m_bps = capacity;
+    SetDataRate(DataRate(capacity));
   }
 
 

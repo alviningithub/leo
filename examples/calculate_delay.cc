@@ -249,9 +249,10 @@ int main (int argc, char *argv[])
     {
         std::cerr << "ISL enabled" << std::endl;
         IslHelper islCh;
+        islCh.SetDeviceAttribute("DataRate",StringValue("32kbps"));
+        islCh.SetPropagationLossModelAttribute("BandWidth",DoubleValue(2100.0));//Accordingly to telesat const
+        islCh.SetPropagationLossModelAttribute("Frequency",DoubleValue(28.5)); 
         NetDeviceContainer islNet = islCh.Install (satellites);
-        utCh.SetPropagationLossModelAttribute("BandWidth",DoubleValue(2100.0));//Accordingly to telesat const
-        utCh.SetPropagationLossModelAttribute("Frequency",DoubleValue(28.5)); 
         ipv4.SetBase ("10.2.0.0", "255.255.0.0");
         ipv4.Assign (islNet);
     }
