@@ -80,7 +80,11 @@ MockNetDevice::GetTypeId (void)
                    DoubleValue (1.0),
                    MakeDoubleAccessor (&MockNetDevice::m_txPower),
                    MakeDoubleChecker<double> ())
-
+    .AddAttribute ("BandWidth",
+                   "The bandwidth for channel in MHz",
+                   DoubleValue (1.0),
+                   MakeDoubleAccessor (&MockNetDevice::m_bandwidth),
+                   MakeDoubleChecker<double> ())
     //
     // Transmit queueing discipline for the device which includes its own set
     // of trace hooks.
@@ -855,6 +859,18 @@ void
 MockNetDevice::SetRxThreshold (double rxThresh)
 {
   m_rxThreshold = rxThresh;
+}
+
+void
+MockNetDevice::SetBandwidth (double p_bandwidth)
+{
+  m_bandwidth = p_bandwidth;
+}
+
+double
+MockNetDevice::GetBandwidth () const
+{
+  return m_bandwidth;
 }
 
 } // namespace ns3

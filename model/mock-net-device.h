@@ -125,6 +125,16 @@ public:
   void SetRxThreshold (double rxThresh);
 
   /**
+   * Set Bandwidth in MHz 
+   */
+  void SetBandwidth (double p_bandwidth);
+
+  /**
+   * Get Bandwidth in MHz
+   */
+  double GetBandwidth () const;
+
+  /**
    * Attach a queue to the MockNetDevice.
    *
    * The MockNetDevice "owns" a queue that implements a queueing
@@ -326,6 +336,11 @@ private:
    * Minimum threshold for received power
    */
   double m_rxThreshold;
+
+  /**
+   * The bandwidth of the channel 
+   */
+  double m_bandwidth;
 
   /**
    * The state of the Net Device transmit state machine.

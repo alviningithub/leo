@@ -216,10 +216,13 @@ int main (int argc, char *argv[])
     utCh.SetConstellation (constellation);
     utCh.SetGndDeviceAttribute("DataRate", StringValue("16kbps"));
     utCh.SetGndDeviceAttribute("TxPower", DoubleValue(60.0));
-    utCh.SetPropagationLossModelAttribute("BandWidth",DoubleValue(2100.0));//Accordingly to telesat const
+    utCh.SetGndDeviceAttribute("BandWidth", DoubleValue(2100.0));//Accordingly to telesat const
+    utCh.SetSatDeviceAttribute("BandWidth", DoubleValue(2100.0));
+    utCh.SetPropagationLossModelAttribute("BandWidth",DoubleValue(2100.0));
     utCh.SetPropagationLossModelAttribute("Frequency",DoubleValue(28.5)); 
     NetDeviceContainer utNet = utCh.Install (satellites, users);
-
+    Ptr<MockNetDevice> single = DynamicCast<MockNetDevice>(utNet.Get(0)); 
+    cout<<single->GetBandwidth();
     topo.utNet = utNet;
     topo.graph_out.open("datarate_trace.txt");
 
@@ -249,14 +252,14 @@ int main (int argc, char *argv[])
     {
         std::cerr << "ISL enabled" << std::endl;
         IslHelper islCh;
-        islCh.SetDeviceAttribute("DataRate",StringValue("32kbps"));
-        islCh.SetPropagationLossModelAttribute("BandWidth",DoubleValue(2100.0));//Accordingly to telesat const
+        islCh.SetDeviceAttribute("BandWidth", DoubleValue(2100.0));//Accordingly to telesat const
+        islCh.SetPropagationLossModelAttribute("BandWidth",DoubleValue(2100.0));
         islCh.SetPropagationLossModelAttribute("Frequency",DoubleValue(28.5)); 
         NetDeviceContainer islNet = islCh.Install (satellites);
         ipv4.SetBase ("10.2.0.0", "255.255.0.0");
         ipv4.Assign (islNet);
     }
-
+      
     Ipv4Address remote = users.Get (1)->GetObject<Ipv4> ()->GetAddress (1, 0).GetLocal ();
     BulkSendHelper sender ("ns3::TcpSocketFactory",
             InetSocketAddress (remote, port));
