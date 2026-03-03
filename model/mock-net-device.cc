@@ -360,15 +360,20 @@ MockNetDevice::TransmitStart (Ptr<Packet> p, const Address &dest)
   DoubleValue bandwidth;
   mc->GetPropagationLoss()->GetAttribute("BandWidth",bandwidth);
   double noiseDB = -90;
+  
+  Time txTime = m_bps.CalculateBytesTxTime (p->GetSize ());
   if(dest_mob && src_mob && mc){
     double rxPower = mc->GetPropagationLoss()->CalcRxPower(m_txPower,src_mob,dest_mob);
     double snrDB = rxPower - noiseDB;
     double capacity = bandwidth.Get()* log2(1 + pow(10,snrDB/10))*1e6; // bandwidth is MHZ
-    SetDataRate(DataRate(capacity));
+    if(capacity > m_bps.GetBitRate())//Assume the capacity should not be lower than the default data rate, otherwise it will cause too long delay and make the simulation unrealistic. So use default data rate instead.
+    {
+      txTime = DataRate(capacity).CalculateBytesTxTime (p->GetSize ());
+      NS_LOG_INFO("Calculated capacity is " << capacity << " bps, txTime is " << txTime.GetSeconds() << " seconds");
+    }
   }
 
 
-  Time txTime = m_bps.CalculateBytesTxTime (p->GetSize ());
   Time txCompleteTime = txTime + m_tInterframeGap;
 
   NS_LOG_LOGIC ("Schedule TransmitCompleteEvent in " << txCompleteTime.GetNanoSeconds () << " nsec");

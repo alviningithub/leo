@@ -19,3 +19,7 @@ def build(bld):
     obj = bld.create_ns3_program('calculate_delay',
                                  ['core', 'leo', 'mobility', 'aodv'])
     obj.source = 'calculate_delay.cc'
+
+    obj = bld.create_ns3_program('calculate_snr',
+                                 ['core', 'leo', 'mobility', 'aodv'])
+    obj.source = 'calculate_snr.cc'

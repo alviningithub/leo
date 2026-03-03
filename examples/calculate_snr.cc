@@ -1,21 +1,4 @@
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- * Author: Tim Schubert <ns-3-leo@timschubert.net>
- */
-
+// Try to run the snr calculation
 #include <iostream>
 
 #include "ns3/core-module.h"
@@ -24,29 +7,130 @@
 #include "ns3/network-module.h"
 #include "ns3/aodv-module.h"
 #include "ns3/udp-server.h"
+#include "ns3/topology-reader.h"
+#include "ns3/channel.h"
+
+#include "ns3/csma-module.h"
+#include "ns3/internet-module.h"
+#include "ns3/point-to-point-module.h"
+#include "ns3/applications-module.h"
+#include "ns3/ipv4-global-routing-helper.h"
+
+#include <fstream>
+#include <cmath>
+#include <tuple>
 
 using namespace ns3;
 
-map<uint32_t, double> delay;
-map<uint32_t,Time> packet_send_time;
+// SNR = Signal Power / Noise Power
 
+// use rxPower to compute data rate
+// using Shannon-Hartley theorem: C = B * log2(1 + SNR)
+// where C is channel capacity (data rate), B is bandwidth, SNR is signal-to-noise ratio
+// SNR in linear scale: SNR = 10^(SNR_dB/10
+
+struct Topology {
+    NetDeviceContainer utNet;
+    NodeContainer users;
+    NodeContainer satellites;
+    std::vector<bool> nolink_BS;
+    std::ofstream graph_out;
+};
+
+Topology topo;
+
+std::vector<std::tuple<double, uint64_t, uint64_t>> time_sent_recv;
+uint64_t total_sent_bytes = 0;
+uint64_t total_recv_bytes = 0;
+
+map<int, double> delay;
+map<uint32_t, Time> txTime; // record send time
+map<uint32_t, Time> rxTime; // record receive time
+double delay_sum = 0.0;
+int cnt = 0;
 static void EchoTxRx (std::string context, const Ptr< const Packet > packet, const TcpHeader &header, const Ptr< const TcpSocketBase > socket)
 {
     // TODO: Calculate end-to-end delay
     // Hint1: Parse the packet (you may refer context.find())
-    std::size_t found =  context.find("Tx");
     // Hint2: Store send/arrival time for the same sequence number
-    uint32_t uid = packet->GetUid();
-    uint32_t seq_num = (uint32_t)(header.GetSequenceNumber().GetValue());
-    
     std::cout << Simulator::Now () << ":" << context << ":" << packet->GetUid() << ":" << socket->GetNode () << ":" << header.GetSequenceNumber () << std::endl;
     // Hint3: Calculate end-to-end delay
-    Time cur_time = Simulator::Now();
-    if(found != std::string::npos){
-        packet_send_time[uid] = (cur_time);
-    }else {
-        delay[uid] = ( cur_time - packet_send_time[uid] ).ToDouble(Time::S);
+
+    uint32_t uid = packet->GetUid();
+    if (context.find("/Tx") != std::string::npos) {
+        // Record send time
+        txTime[uid] = Simulator::Now();
+        total_sent_bytes += packet->GetSize();
+        time_sent_recv.emplace_back(Simulator::Now().GetSeconds(), total_sent_bytes, total_recv_bytes);
+    } else if (context.find("/Rx") != std::string::npos) {
+        // Record receive time
+        rxTime[uid] = Simulator::Now();
+        total_recv_bytes += packet->GetSize();
+        time_sent_recv.emplace_back(Simulator::Now().GetSeconds(), total_sent_bytes, total_recv_bytes);
+        // Calculate delay if send time exists
+        if (txTime.find(uid) != txTime.end()) { // find send time
+            delay[uid] = (rxTime[uid] - txTime[uid]).GetSeconds();
+            cout << "Packet " << uid << " end-to-end delay: " << delay[uid] << "s" << endl;
+            delay_sum += delay[uid];
+            cnt++;
+        }
     }
+
+
+}
+
+double FindDataRate(Ptr<MockNetDevice> src, double rxPower){
+  double noiseDB = -90; // default noise power in dB
+  double snrDB = rxPower - noiseDB;
+  double se = log2(1+pow(10, snrDB/10));
+  return src->GetBandwidth() * se * 1e6;
+
+}
+
+// find the rx power of each user-satellite link
+void FindUtRxPower(vector<pair<pair<int, int>, double>> &v){
+  Ptr<const Channel> c = ((topo.utNet).Get(0))->GetChannel();
+  if(c == nullptr) return;
+  
+  Ptr<const MockChannel> mc = DynamicCast<const MockChannel>(c);
+  Ptr<PropagationLossModel> pLoss = mc->GetPropagationLoss ();
+  if(pLoss == 0) return;
+  
+  for(int i=0;i<(int)topo.users.GetN();i++){
+    Ptr<const Node> src_node = topo.users.Get(i);
+    Ptr<MockNetDevice> src = DynamicCast<MockNetDevice>(src_node->GetDevice(0));
+    Ptr<MobilityModel> srcMob = src_node->GetObject<MobilityModel> ();
+    double txPower = src->GetTxPower ();
+    double rxPower = txPower;
+    
+    for(int j=0;j<topo.satellites.GetN();j++){
+      Ptr<const Node> dst_node = topo.satellites.Get(j);
+      Ptr<MobilityModel> dstMob = dst_node->GetObject<MobilityModel> ();
+      // double distance = srcMob->GetDistanceFrom (dstMob);
+      // cout<<"distance between "<<src_node->GetId()<<" and "<<dst_node->GetId()<<" is "<<distance<<endl;
+      
+      // (transmitter power, receiver position, transmitter position)
+      rxPower = pLoss->CalcRxPower (txPower, srcMob, dstMob);
+      if (rxPower >= -900.0){
+        // cout<<"link between "<<src_node->GetId()<<" "<<dst_node->GetId()<<" has rx power: "<<rxPower<<", ";
+        double dataRate = FindDataRate(src, rxPower);
+        //cout<<"data rate: "<< dataRate<<" MHz"<<endl;
+        //cout<<src_node->GetId()<<"\tdst_node:"<<dst_node->GetId()<<"\tdataRate:"<<dataRate<<endl;
+        v.emplace_back(make_pair(src_node->GetId(), dst_node->GetId()), dataRate);
+        topo.nolink_BS[i] = false;
+      }
+    }
+  }
+}
+
+
+void FindRxPower(std::string context, Ptr<const MobilityModel> position){
+    vector<pair<pair<int, int>, double>> v;
+    FindUtRxPower(v);
+	//cout << "FindRxPower called" << endl; 
+	for(auto &entry : v){
+		topo.graph_out << entry.first.first << "\t" << entry.first.second << "\t" << entry.second << endl;
+	}
 }
 
 void connect ()
@@ -54,7 +138,6 @@ void connect ()
     Config::Connect ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Tx", MakeCallback (&EchoTxRx));
     Config::Connect ("/NodeList/*/$ns3::TcpL4Protocol/SocketList/*/Rx", MakeCallback (&EchoTxRx));
 }
-
 
 
 
@@ -71,7 +154,7 @@ void initial_position (const NodeContainer &satellites, int sz)
     }
 }
 
-NS_LOG_COMPONENT_DEFINE ("LeoBulkSendTracingExample");
+NS_LOG_COMPONENT_DEFINE ("CalculateSnrExample");
 
 int main (int argc, char *argv[])
 {
@@ -83,16 +166,17 @@ int main (int argc, char *argv[])
     LeoLatLong destination (7.06692, 74.0213);
     std::string islRate = "2Gbps";
     std::string constellation = "TelesatGateway";
+    double bandwidth = 20.0; //MHz
     uint16_t port = 9;
     uint32_t latGws = 20;
     uint32_t lonGws = 20;
-    double duration = 100;
+    double duration = 10;
     bool islEnabled = false;
     bool pcap = false;
     uint64_t ttlThresh = 0;
     std::string routingProto = "aodv";
-    double bandwidth = 2100.0; // MHz, accordingly to telesat const
 
+    cmd.AddValue("bandwidth", "Bandwidth for the channel in MHz", bandwidth);
     cmd.AddValue("orbitFile", "CSV file with orbit parameters", orbitFile);
     cmd.AddValue("traceFile", "CSV file to store mobility trace in", traceFile);
     cmd.AddValue("precision", "ns3::LeoCircularOrbitMobilityModel::Precision");
@@ -109,9 +193,7 @@ int main (int argc, char *argv[])
     cmd.AddValue("destOnly", "ns3::aodv::RoutingProtocol::DestinationOnly");
     cmd.AddValue("routeTimeout", "ns3::aodv::RoutingProtocol::ActiveRouteTimeout");
     cmd.AddValue("pcap", "Enable packet capture", pcap);
-    cmd.AddValue("bandwidth", "Bandwidth in MHz for path loss and data rate calculation", bandwidth);
     cmd.Parse (argc, argv);
-
 
     std::streambuf *coutbuf = std::cout.rdbuf();
     // redirect cout if traceFile
@@ -130,27 +212,22 @@ int main (int argc, char *argv[])
     }
     else
     {
-        // defining orbits in code (height, inclination, satellites per plane, number of planes)
         satellites = orbit.Install ({ LeoOrbit (1200, 20, 5, 5) });
     }
-
 
     LeoGndNodeHelper ground;
     NodeContainer users = ground.Install (source, destination);
 
-
     LeoChannelHelper utCh;
     utCh.SetConstellation (constellation);
     utCh.SetGndDeviceAttribute("DataRate", StringValue("8kbps"));
-    utCh.SetGndDeviceAttribute("BandWidth", DoubleValue(bandwidth));//Accordingly to telesat const
+    utCh.SetGndDeviceAttribute("BandWidth", DoubleValue(bandwidth));
     utCh.SetSatDeviceAttribute("BandWidth", DoubleValue(bandwidth));
     utCh.SetPropagationLossModelAttribute("BandWidth",DoubleValue(bandwidth));
-    utCh.SetPropagationLossModelAttribute("Frequency",DoubleValue(28.5)); 
+    utCh.SetPropagationLossModelAttribute("Frequency",DoubleValue(28.5));
     NetDeviceContainer utNet = utCh.Install (satellites, users);
-    Ptr<MockNetDevice> single = DynamicCast<MockNetDevice>(utNet.Get(0)); 
-    cout<<single->GetBandwidth();
 
-    // initial_position(satellites, 25);
+    initial_position(satellites, 5);
 
     InternetStackHelper stack;
     AodvHelper aodv;
@@ -176,14 +253,14 @@ int main (int argc, char *argv[])
     {
         std::cerr << "ISL enabled" << std::endl;
         IslHelper islCh;
-        islCh.SetDeviceAttribute("BandWidth", DoubleValue(bandwidth));//Accordingly to telesat const
         islCh.SetPropagationLossModelAttribute("BandWidth",DoubleValue(bandwidth));
-        islCh.SetPropagationLossModelAttribute("Frequency",DoubleValue(28.5)); 
+        islCh.SetPropagationLossModelAttribute("Frequency",DoubleValue(28.5));
+
         NetDeviceContainer islNet = islCh.Install (satellites);
         ipv4.SetBase ("10.2.0.0", "255.255.0.0");
         ipv4.Assign (islNet);
     }
-      
+
     Ipv4Address remote = users.Get (1)->GetObject<Ipv4> ()->GetAddress (1, 0).GetLocal ();
     BulkSendHelper sender ("ns3::TcpSocketFactory",
             InetSocketAddress (remote, port));
@@ -202,8 +279,8 @@ int main (int argc, char *argv[])
     sinkApps.Start (Seconds (0.0));
 
     // Fix segmentation fault
+   
     Simulator::Schedule(Seconds(1e-7), &connect);
-    // Simulator::Schedule(Seconds(1e-7),&FindRxPower);
 
     //
     // Set up tracing if enabled
@@ -218,6 +295,14 @@ int main (int argc, char *argv[])
     std::cerr << "LOCAL =" << users.Get (0)->GetId () << std::endl;
     std::cerr << "REMOTE=" << users.Get (1)->GetId () << ",addr=" << Ipv4Address::ConvertFrom (remote) << std::endl;
 
+    // initialize topo
+    topo.utNet = utNet;
+    topo.users = users;
+    topo.satellites = satellites;
+    topo.nolink_BS.resize(users.GetN(), true);
+    topo.graph_out.open("topo_graph.txt");
+
+
     NS_LOG_INFO ("Run Simulation.");
     Simulator::Stop (Seconds (duration));
     Simulator::Run ();
@@ -226,23 +311,25 @@ int main (int argc, char *argv[])
 
     Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApps.Get (0));
     std::cout << users.Get (0)->GetId () << ":" << users.Get (1)->GetId () << ": " << sink1->GetTotalRx () << std::endl;
-
-    // TODO: Output End-to-end Delay
     double avg_delay = 0;
     int cnt = 0;
     for(auto &[seq, t]: delay){
         avg_delay += delay[seq];
         cnt++;
     }
-    if(cnt > 0) {
+
+    if (cnt > 0) {
         avg_delay /= cnt;
-    }
-    cout << "Packet average end-to-end delay is " << avg_delay << "s" << endl;
-
-    for(auto &[seq, t]: delay){
-        cout << seq << "," << t << endl;
+        std::cout << "Packet average end-to-end delay is " << avg_delay << "s" << endl;
     }
 
+    std::ofstream graph_out("graphout.txt");
+    for(auto &[t, sent, recv]: time_sent_recv){
+        graph_out << t << " " << sent << " " << recv << std::endl;
+    }
+    graph_out.close();
+
+	topo.graph_out.close();
     out.close ();
     std::cout.rdbuf(coutbuf);
 
