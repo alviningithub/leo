@@ -36,16 +36,27 @@ static void EchoTxRx (std::string context, const Ptr< const Packet > packet, con
     // Hint1: Parse the packet (you may refer context.find())
     std::size_t found =  context.find("Tx");
     // Hint2: Store send/arrival time for the same sequence number
-    uint32_t uid = packet->GetUid();
-    uint32_t seq_num = (uint32_t)(header.GetSequenceNumber().GetValue());
-    
-    std::cout << Simulator::Now () << ":" << context << ":" << packet->GetUid() << ":" << socket->GetNode () << ":" << header.GetSequenceNumber () << std::endl;
-    // Hint3: Calculate end-to-end delay
+    uint32_t seq_num = static_cast<uint32_t>(header.GetSequenceNumber().GetValue());
+    uint32_t ack_num = static_cast<uint32_t>(header.GetAckNumber().GetValue());
+    // std::cout << Simulator::Now () << ":" << context << ":seq=" << seq_num << ":ack=" << ack_num << ":" << socket->GetNode () << ":" << header.GetSequenceNumber () << std::endl;
+    // Calculate end-to-end delay keyed by sequence number
     Time cur_time = Simulator::Now();
-    if(found != std::string::npos){
-        packet_send_time[uid] = (cur_time);
-    }else {
-        delay[uid] = ( cur_time - packet_send_time[uid] ).ToDouble(Time::S);
+    if (found != std::string::npos)
+    {
+        packet_send_time[seq_num] = cur_time;
+    }
+    else
+    {
+        auto it = packet_send_time.find(seq_num);
+        if (it != packet_send_time.end())
+        {
+            delay[seq_num] = (cur_time - it->second).ToDouble(Time::S);
+            cout<<  static_cast<double>(Simulator::Now().GetMicroSeconds())/1000000.0 << " " << delay[seq_num] << endl;
+        }
+        else
+        {
+            // No matching Tx record found; ignore or log if needed
+        }
     }
 }
 
@@ -188,7 +199,7 @@ int main (int argc, char *argv[])
     BulkSendHelper sender ("ns3::TcpSocketFactory",
             InetSocketAddress (remote, port));
     // Set the amount of data to send in bytes.  Zero is unlimited.
-    sender.SetAttribute ("MaxBytes", UintegerValue (1024));
+    sender.SetAttribute ("MaxBytes", UintegerValue (0));
     sender.SetAttribute ("SendSize", UintegerValue (512));
     ApplicationContainer sourceApps = sender.Install (users.Get (0));
     sourceApps.Start (Seconds (0.0));
@@ -230,19 +241,6 @@ int main (int argc, char *argv[])
     // TODO: Output End-to-end Delay
     double avg_delay = 0;
     int cnt = 0;
-    for(auto &[seq, t]: delay){
-        avg_delay += delay[seq];
-        cnt++;
-    }
-    if(cnt > 0) {
-        avg_delay /= cnt;
-    }
-    cout << "Packet average end-to-end delay is " << avg_delay << "s" << endl;
-
-    for(auto &[seq, t]: delay){
-        cout << seq << "," << t << endl;
-    }
-
     out.close ();
     std::cout.rdbuf(coutbuf);
 
