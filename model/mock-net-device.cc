@@ -31,7 +31,7 @@
 #include "ns3/double.h"
 #include "mock-channel.h"
 #include "mock-net-device.h"
-
+#include "beamforming-calculator.h"
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("MockNetDevice");
@@ -364,6 +364,24 @@ MockNetDevice::TransmitStart (Ptr<Packet> p, const Address &dest)
   Time txTime = m_bps.CalculateBytesTxTime (p->GetSize ());
   if(dest_mob && src_mob && mc){
     double rxPower = mc->GetPropagationLoss()->CalcRxPower(m_txPower,src_mob,dest_mob);
+    
+    // Calculate beamforming gain
+    Vector txPos = src_mob->GetPosition();
+    Vector rxPos = dest_mob->GetPosition();
+
+    double dx = rxPos.x - txPos.x;
+    double dy = rxPos.y - txPos.y;
+    double rx_direction = std::atan2(dy, dx); // Angle from transmitter to receiver
+    if (rx_direction < 0) rx_direction += 2 * M_PI; // Normalize to [0, 2π]
+
+    BeamformingCalculator bf(4, 0.5, 24e9);
+    double g_rx = bf.GetGain(rx_direction, rx_direction);
+    double bfGain_dB = 10.0 * std::log10(g_rx);
+    
+    rxPower += bfGain_dB;
+
+    
+    
     double snrDB = rxPower - noiseDB;
     double capacity = bandwidth.Get()* log2(1 + pow(10,snrDB/10))*1e6; // bandwidth is MHZ
     if(capacity > m_bps.GetBitRate())//Assume the capacity should not be lower than the default data rate, otherwise it will cause too long delay and make the simulation unrealistic. So use default data rate instead.

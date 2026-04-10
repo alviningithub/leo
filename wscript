@@ -29,6 +29,7 @@ def build(bld):
         'model/mock-channel.cc',
         'model/isl-mock-channel.cc',
         'model/isl-propagation-loss-model.cc',
+        'model/beamforming-calculator.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('leo')
